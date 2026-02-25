@@ -705,6 +705,12 @@ def main() -> None:
                 if running_sft_steps > 0:
                     print(f"SFT epoch {epoch + 1} loss: {(running_sft_loss / running_sft_steps):.4f}")
 
+            print("Refreshing DPO reference model from post-SFT policy weights")
+            ref_model.load_state_dict(policy_model.state_dict(), strict=True)
+            ref_model.eval()
+            for p in ref_model.parameters():
+                p.requires_grad = False
+
         optimizer = torch.optim.AdamW(
             policy_model.parameters(), lr=args.lr, weight_decay=args.weight_decay
         )
