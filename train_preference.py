@@ -39,6 +39,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--train_samples", type=int, default=2000)
     parser.add_argument("--eval_samples", type=int, default=500)
+    parser.add_argument(
+        "-corruption",
+        "--corruption",
+        type=float,
+        default=0.0,
+        help=(
+            "Fraction of DPO training pairs to corrupt by swapping chosen/rejected labels "
+            "(0.0 to 1.0)."
+        ),
+    )
     parser.add_argument("--max_length", type=int, default=512)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=2)
@@ -174,6 +184,38 @@ def build_kto_examples_from_pairs(pairs: List[Dict[str, str]]) -> List[Dict[str,
 
 def build_sft_examples_from_pairs(pairs: List[Dict[str, str]]) -> List[Dict[str, str]]:
     return [{"prompt": pair["prompt"], "completion": pair["chosen"]} for pair in pairs]
+
+
+def corrupt_dpo_pairs(pairs: List[Dict[str, str]], corruption: float) -> Tuple[List[Dict[str, str]], int]:
+    if corruption <= 0.0 or len(pairs) == 0:
+        return [dict(pair) for pair in pairs], 0
+
+    num_to_corrupt = int(len(pairs) * corruption)
+    if num_to_corrupt <= 0:
+        return [dict(pair) for pair in pairs], 0
+
+    indices = set(random.sample(range(len(pairs)), num_to_corrupt))
+    out: List[Dict[str, str]] = []
+
+    for idx, pair in enumerate(pairs):
+        if idx in indices:
+            out.append(
+                {
+                    "prompt": pair["prompt"],
+                    "chosen": pair["rejected"],
+                    "rejected": pair["chosen"],
+                }
+            )
+        else:
+            out.append(
+                {
+                    "prompt": pair["prompt"],
+                    "chosen": pair["chosen"],
+                    "rejected": pair["rejected"],
+                }
+            )
+
+    return out, num_to_corrupt
 
 
 def encode_prompt_response(
@@ -554,6 +596,8 @@ def print_metrics(title: str, metrics: Dict[str, float]) -> None:
 
 def main() -> None:
     args = parse_args()
+    if not (0.0 <= args.corruption <= 1.0):
+        raise ValueError(f"--corruption must be in [0, 1], got {args.corruption}")
     set_seed(args.seed)
 
     device = resolve_device(args.device)
@@ -583,9 +627,18 @@ def main() -> None:
     if len(train_pairs) == 0 or len(eval_pairs) == 0:
         raise RuntimeError("No usable pairs were parsed from dataset. Check dataset columns and format.")
 
+    dpo_train_pairs = train_pairs
+    num_corrupted = 0
+    if args.mode == "dpo" and not args.eval_only and args.corruption > 0.0:
+        dpo_train_pairs, num_corrupted = corrupt_dpo_pairs(train_pairs, args.corruption)
+        print(
+            f"Applied DPO corruption to {num_corrupted}/{len(train_pairs)} train pairs "
+            f"({(num_corrupted / len(train_pairs)):.2%})"
+        )
+
     pair_collator = partial(collate_pairs, tokenizer=tokenizer, max_length=args.max_length)
     train_pair_loader = DataLoader(
-        train_pairs,
+        dpo_train_pairs,
         batch_size=args.batch_size,
         shuffle=not args.eval_only,
         collate_fn=pair_collator,

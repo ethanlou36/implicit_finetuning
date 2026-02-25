@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--train_samples", type=int, default=16000)
     parser.add_argument("--eval_samples", type=int, default=1000)
+    parser.add_argument("-corruption", "--corruption", type=float, default=0.0)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--sft_epochs", type=int, default=2)
     parser.add_argument("--batch_size", type=int, default=4)
@@ -130,6 +131,8 @@ def main() -> None:
                 str(args.train_samples),
                 "--eval_samples",
                 str(args.eval_samples),
+                "--corruption",
+                str(args.corruption),
                 "--epochs",
                 str(args.epochs),
                 "--sft_epochs",
