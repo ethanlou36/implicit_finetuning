@@ -108,32 +108,34 @@ Saved to `output_dir/metrics.json`.
 
 Run setup:
 - Baseline: `gpt2` eval-only on `test` (`eval_samples=1000`)
-- Trained: SFT warmup (`sft_epochs=2`) + DPO (`epochs=5`) on `train_samples=16000`
+- Training: SFT warmup (`sft_epochs=2`) + DPO (`epochs=5`) on `train_samples=16000`
+- Compared data conditions: `corruption=0.0` vs `corruption=0.25`
 
 Final test metrics summary:
 
-| Model Stage | pair_acc | margin |
-| --- | ---: | ---: |
-| Baseline (`eval_only`) | 0.4520 | -0.0700 |
-| SFT + DPO | 0.5350 | 0.1228 |
-| Delta | +0.0830 | +0.1928 |
+| Condition | pair_acc | margin | delta pair_acc vs baseline |
+| --- | ---: | ---: | ---: |
+| Baseline (`eval_only`) | 0.4520 | -0.0700 | +0.0000 |
+| SFT + DPO (`corruption=0.0`) | 0.5350 | 0.1228 | +0.0830 |
+| SFT + DPO (`corruption=0.25`) | 0.5200 | 0.0870 | +0.0680 |
 
 ```mermaid
 xychart-beta
-    title "GPT-2 Test pair_acc (Anthropic/hh-rlhf)"
-    x-axis ["Baseline", "SFT+DPO"]
+    title "GPT-2 Test pair_acc (Baseline vs SFT+DPO corruption settings)"
+    x-axis ["Baseline", "SFT+DPO (0.0)", "SFT+DPO (0.25)"]
     y-axis "pair_acc" 0.40 --> 0.56
-    bar [0.452, 0.535]
+    bar [0.452, 0.535, 0.520]
 ```
 
-Per-epoch eval `pair_acc` during DPO:
+Per-epoch eval `pair_acc` during DPO (overlaid lines):
 
 ```mermaid
 xychart-beta
-    title "DPO Eval pair_acc by Epoch (after SFT warmup)"
+    title "DPO Eval pair_acc by Epoch (0.0 vs 0.25 corruption)"
     x-axis [1, 2, 3, 4, 5]
-    y-axis "pair_acc" 0.52 --> 0.54
+    y-axis "pair_acc" 0.515 --> 0.54
     line [0.523, 0.531, 0.534, 0.533, 0.535]
+    line [0.519, 0.522, 0.530, 0.521, 0.520]
 ```
 
 ## Notes
