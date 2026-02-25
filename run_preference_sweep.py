@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--models",
         nargs="+",
-        default=["TinyLlama/TinyLlama-1.1B-Chat-v1.0"],
+        default=["gpt2"],
         help="Model names to benchmark.",
     )
     parser.add_argument("--seeds", nargs="+", type=int, default=[42])

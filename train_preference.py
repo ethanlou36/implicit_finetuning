@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--train_split", default="train")
     parser.add_argument("--eval_split", default="test")
-    parser.add_argument("--model_name_or_path", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    parser.add_argument("--model_name_or_path", default="gpt2")
     parser.add_argument(
         "--ref_model_name_or_path",
         default=None,
@@ -57,6 +57,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log_every", type=int, default=20)
     parser.add_argument("--eval_only", action="store_true")
     parser.add_argument("--save_model", action="store_true")
+    parser.add_argument(
+        "--sft_epochs",
+        type=int,
+        default=1,
+        help="SFT warmup epochs on chosen responses before DPO (ignored for KTO/eval-only).",
+    )
+    parser.add_argument(
+        "--sft_lr",
+        type=float,
+        default=None,
+        help="SFT learning rate. Defaults to --lr when unset.",
+    )
     parser.add_argument(
         "--device",
         choices=["auto", "cuda", "mps", "cpu"],
@@ -160,6 +172,10 @@ def build_kto_examples_from_pairs(pairs: List[Dict[str, str]]) -> List[Dict[str,
     return examples
 
 
+def build_sft_examples_from_pairs(pairs: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    return [{"prompt": pair["prompt"], "completion": pair["chosen"]} for pair in pairs]
+
+
 def encode_prompt_response(
     tokenizer: AutoTokenizer, prompt: str, response: str, max_length: int
 ) -> Optional[Dict[str, List[int]]]:
@@ -247,6 +263,19 @@ def collate_kto(
     tensor_batch = pad_batch(features, tokenizer.pad_token_id)
     tensor_batch["kto_label"] = torch.tensor(labels, dtype=torch.float)
     return tensor_batch
+
+
+def collate_sft(
+    batch: List[Dict[str, str]], tokenizer: AutoTokenizer, max_length: int
+) -> Optional[Dict[str, torch.Tensor]]:
+    features: List[Dict[str, List[int]]] = []
+    for ex in batch:
+        enc = encode_prompt_response(tokenizer, ex["prompt"], ex["completion"], max_length=max_length)
+        if enc is not None:
+            features.append(enc)
+    if not features:
+        return None
+    return pad_batch(features, tokenizer.pad_token_id)
 
 
 def sequence_log_probs(
@@ -589,11 +618,93 @@ def main() -> None:
             pin_memory=(device.type == "cuda"),
         )
         print(f"Built KTO examples: {len(train_kto)} train / {len(eval_kto)} eval")
+        train_sft_loader = None
     else:
         train_loader = train_pair_loader
         eval_kto_loader = None
+        train_sft = build_sft_examples_from_pairs(train_pairs)
+        sft_collator = partial(collate_sft, tokenizer=tokenizer, max_length=args.max_length)
+        train_sft_loader = DataLoader(
+            train_sft,
+            batch_size=args.batch_size,
+            shuffle=True,
+            collate_fn=sft_collator,
+            pin_memory=(device.type == "cuda"),
+        )
+        print(f"Built SFT examples: {len(train_sft)} train")
 
     if not args.eval_only:
+        scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda" and precision == "fp16"))
+        use_amp = device.type == "cuda" and precision in {"fp16", "bf16"}
+
+        if args.mode == "dpo" and args.sft_epochs > 0:
+            sft_lr = args.sft_lr if args.sft_lr is not None else args.lr
+            sft_optimizer = torch.optim.AdamW(
+                policy_model.parameters(), lr=sft_lr, weight_decay=args.weight_decay
+            )
+            sft_total_steps = math.ceil(len(train_sft_loader) / args.grad_accum_steps) * args.sft_epochs
+            sft_warmup_steps = int(sft_total_steps * args.warmup_ratio)
+            sft_scheduler = get_linear_schedule_with_warmup(
+                sft_optimizer, sft_warmup_steps, sft_total_steps
+            )
+
+            print(
+                f"SFT warmup for {args.sft_epochs} epoch(s), total optimizer steps: {sft_total_steps}, lr: {sft_lr}"
+            )
+            policy_model.train()
+            sft_global_step = 0
+            sft_optimizer.zero_grad(set_to_none=True)
+
+            for epoch in range(args.sft_epochs):
+                progress = tqdm(train_sft_loader, desc=f"SFT Epoch {epoch + 1}/{args.sft_epochs}")
+                running_sft_loss = 0.0
+                running_sft_steps = 0
+
+                for step, batch in enumerate(progress):
+                    if batch is None:
+                        continue
+                    batch = to_device(batch, device)
+
+                    with torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=use_amp):
+                        outputs = policy_model(
+                            input_ids=batch["input_ids"],
+                            attention_mask=batch["attention_mask"],
+                            labels=batch["labels"],
+                        )
+                        loss = outputs.loss
+
+                    running_sft_loss += loss.item()
+                    running_sft_steps += 1
+
+                    loss_for_backprop = loss / args.grad_accum_steps
+                    if scaler.is_enabled():
+                        scaler.scale(loss_for_backprop).backward()
+                    else:
+                        loss_for_backprop.backward()
+
+                    should_step = (
+                        (step + 1) % args.grad_accum_steps == 0
+                        or (step + 1) == len(train_sft_loader)
+                    )
+                    if should_step:
+                        if scaler.is_enabled():
+                            scaler.unscale_(sft_optimizer)
+                        torch.nn.utils.clip_grad_norm_(policy_model.parameters(), args.max_grad_norm)
+                        if scaler.is_enabled():
+                            scaler.step(sft_optimizer)
+                            scaler.update()
+                        else:
+                            sft_optimizer.step()
+                        sft_scheduler.step()
+                        sft_optimizer.zero_grad(set_to_none=True)
+                        sft_global_step += 1
+
+                    if running_sft_steps > 0 and (sft_global_step % args.log_every == 0):
+                        progress.set_postfix({"sft_loss": f"{(running_sft_loss / running_sft_steps):.4f}"})
+
+                if running_sft_steps > 0:
+                    print(f"SFT epoch {epoch + 1} loss: {(running_sft_loss / running_sft_steps):.4f}")
+
         optimizer = torch.optim.AdamW(
             policy_model.parameters(), lr=args.lr, weight_decay=args.weight_decay
         )
@@ -603,7 +714,6 @@ def main() -> None:
 
         print(f"Training {args.mode.upper()} for {args.epochs} epoch(s), total optimizer steps: {total_steps}")
         policy_model.train()
-        scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda" and precision == "fp16"))
         global_step = 0
         optimizer.zero_grad(set_to_none=True)
 
@@ -617,7 +727,6 @@ def main() -> None:
                     continue
                 batch = to_device(batch, device)
 
-                use_amp = device.type == "cuda" and precision in {"fp16", "bf16"}
                 with torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=use_amp):
                     if args.mode == "dpo":
                         out = dpo_forward(
