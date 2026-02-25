@@ -130,18 +130,18 @@ xychart-beta
     bar [0.452, 0.535, 0.520, 0.513, 0.478, 0.434]
 ```
 
-Per-epoch eval `pair_acc` during DPO (overlaid lines):
+Per-epoch eval improvement over baseline during DPO (overlaid lines):
 
 ```mermaid
 xychart-beta
-    title "DPO Eval pair_acc by Epoch (0.0 vs 0.25 vs 0.5 vs 0.75 vs 1.0 corruption)"
+    title "DPO Eval delta pair_acc vs baseline (baseline pair_acc=0.4520)"
     x-axis [1, 2, 3, 4, 5]
-    y-axis "pair_acc" 0.43 --> 0.54
-    line [0.523, 0.531, 0.534, 0.533, 0.535]
-    line [0.519, 0.522, 0.530, 0.521, 0.520]
-    line [0.508, 0.508, 0.513, 0.507, 0.513]
-    line [0.489, 0.479, 0.472, 0.474, 0.478]
-    line [0.473, 0.444, 0.432, 0.436, 0.434]
+    y-axis "delta pair_acc" -0.03 --> 0.09
+    line [0.071, 0.079, 0.082, 0.081, 0.083]
+    line [0.067, 0.070, 0.078, 0.069, 0.068]
+    line [0.056, 0.056, 0.061, 0.055, 0.061]
+    line [0.037, 0.027, 0.020, 0.022, 0.026]
+    line [0.021, -0.008, -0.020, -0.016, -0.018]
 ```
 
 Legend for the overlaid epoch graph:
