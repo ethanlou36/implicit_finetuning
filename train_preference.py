@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--train_split", default="train")
     parser.add_argument("--eval_split", default="test")
-    parser.add_argument("--model_name_or_path", default="distilgpt2")
+    parser.add_argument("--model_name_or_path", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
     parser.add_argument(
         "--ref_model_name_or_path",
         default=None,

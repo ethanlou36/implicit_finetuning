@@ -21,15 +21,15 @@ class RunResult:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run 3-seed preference benchmarks for base and post-training pair accuracy."
+        description="Run preference benchmarks for base and post-training pair accuracy."
     )
     parser.add_argument(
         "--models",
         nargs="+",
-        default=["gpt2", "TinyLlama/TinyLlama-1.1B-Chat-v1.0"],
-        help="Model names to benchmark. Include one base and one instruction-tuned model.",
+        default=["TinyLlama/TinyLlama-1.1B-Chat-v1.0"],
+        help="Model names to benchmark.",
     )
-    parser.add_argument("--seeds", nargs="+", type=int, default=[41, 42, 43])
+    parser.add_argument("--seeds", nargs="+", type=int, default=[42])
     parser.add_argument("--mode", choices=["dpo", "kto"], default="dpo")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--train_samples", type=int, default=8000)
