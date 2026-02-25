@@ -32,9 +32,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seeds", nargs="+", type=int, default=[42])
     parser.add_argument("--mode", choices=["dpo", "kto"], default="dpo")
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--train_samples", type=int, default=8000)
-    parser.add_argument("--eval_samples", type=int, default=500)
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--train_samples", type=int, default=16000)
+    parser.add_argument("--eval_samples", type=int, default=1000)
+    parser.add_argument("--epochs", type=int, default=5)
+    parser.add_argument("--sft_epochs", type=int, default=2)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--grad_accum_steps", type=int, default=4)
     parser.add_argument("--max_length", type=int, default=384)
@@ -131,6 +132,8 @@ def main() -> None:
                 str(args.eval_samples),
                 "--epochs",
                 str(args.epochs),
+                "--sft_epochs",
+                str(args.sft_epochs),
                 "--batch_size",
                 str(args.batch_size),
                 "--grad_accum_steps",
