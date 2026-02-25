@@ -109,7 +109,7 @@ Saved to `output_dir/metrics.json`.
 Run setup:
 - Baseline: `gpt2` eval-only on `test` (`eval_samples=1000`)
 - Training: SFT warmup (`sft_epochs=2`) + DPO (`epochs=5`) on `train_samples=16000`
-- Compared data conditions: `corruption=0.0` vs `corruption=0.25`
+- Compared data conditions: `corruption=0.0` vs `corruption=0.25` vs `corruption=0.5`
 
 Final test metrics summary:
 
@@ -118,25 +118,32 @@ Final test metrics summary:
 | Baseline (`eval_only`) | 0.4520 | -0.0700 | +0.0000 |
 | SFT + DPO (`corruption=0.0`) | 0.5350 | 0.1228 | +0.0830 |
 | SFT + DPO (`corruption=0.25`) | 0.5200 | 0.0870 | +0.0680 |
+| SFT + DPO (`corruption=0.5`) | 0.5130 | 0.0452 | +0.0610 |
 
 ```mermaid
 xychart-beta
     title "GPT-2 Test pair_acc (Baseline vs SFT+DPO corruption settings)"
-    x-axis ["Baseline", "SFT+DPO (0.0)", "SFT+DPO (0.25)"]
+    x-axis ["Baseline", "SFT+DPO (0.0)", "SFT+DPO (0.25)", "SFT+DPO (0.5)"]
     y-axis "pair_acc" 0.40 --> 0.56
-    bar [0.452, 0.535, 0.520]
+    bar [0.452, 0.535, 0.520, 0.513]
 ```
 
 Per-epoch eval `pair_acc` during DPO (overlaid lines):
 
 ```mermaid
 xychart-beta
-    title "DPO Eval pair_acc by Epoch (0.0 vs 0.25 corruption)"
+    title "DPO Eval pair_acc by Epoch (0.0 vs 0.25 vs 0.5 corruption)"
     x-axis [1, 2, 3, 4, 5]
-    y-axis "pair_acc" 0.515 --> 0.54
+    y-axis "pair_acc" 0.505 --> 0.54
     line [0.523, 0.531, 0.534, 0.533, 0.535]
     line [0.519, 0.522, 0.530, 0.521, 0.520]
+    line [0.508, 0.508, 0.513, 0.507, 0.513]
 ```
+
+Line/color order in the overlaid epoch graph:
+- Line 1: `corruption=0.0`
+- Line 2: `corruption=0.25`
+- Line 3: `corruption=0.5`
 
 ## Notes
 
