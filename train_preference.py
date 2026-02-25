@@ -69,6 +69,12 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="Training precision. Mixed precision is only used on CUDA.",
     )
+    parser.add_argument(
+        "--length_normalize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Normalize sequence log-probabilities by response token count.",
+    )
     return parser.parse_args()
 
 
@@ -244,7 +250,11 @@ def collate_kto(
 
 
 def sequence_log_probs(
-    model: AutoModelForCausalLM, input_ids: torch.Tensor, attention_mask: torch.Tensor, labels: torch.Tensor
+    model: AutoModelForCausalLM,
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    labels: torch.Tensor,
+    length_normalize: bool = True,
 ) -> torch.Tensor:
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits
@@ -259,7 +269,13 @@ def sequence_log_probs(
         -1, safe_labels.unsqueeze(-1)
     ).squeeze(-1)
     token_log_probs = token_log_probs * valid_mask
-    return token_log_probs.sum(dim=-1)
+    seq_log_probs = token_log_probs.sum(dim=-1)
+
+    if not length_normalize:
+        return seq_log_probs
+
+    token_counts = valid_mask.sum(dim=-1).clamp_min(1.0)
+    return seq_log_probs / token_counts
 
 
 def to_device(batch: Dict[str, torch.Tensor], device: torch.device) -> Dict[str, torch.Tensor]:
@@ -307,26 +323,37 @@ def dpo_forward(
     ref_model: AutoModelForCausalLM,
     batch: Dict[str, torch.Tensor],
     beta: float,
+    length_normalize: bool,
 ) -> Dict[str, torch.Tensor]:
     policy_chosen = sequence_log_probs(
-        policy_model, batch["chosen_input_ids"], batch["chosen_attention_mask"], batch["chosen_labels"]
+        policy_model,
+        batch["chosen_input_ids"],
+        batch["chosen_attention_mask"],
+        batch["chosen_labels"],
+        length_normalize=length_normalize,
     )
     policy_rejected = sequence_log_probs(
         policy_model,
         batch["rejected_input_ids"],
         batch["rejected_attention_mask"],
         batch["rejected_labels"],
+        length_normalize=length_normalize,
     )
 
     with torch.no_grad():
         ref_chosen = sequence_log_probs(
-            ref_model, batch["chosen_input_ids"], batch["chosen_attention_mask"], batch["chosen_labels"]
+            ref_model,
+            batch["chosen_input_ids"],
+            batch["chosen_attention_mask"],
+            batch["chosen_labels"],
+            length_normalize=length_normalize,
         )
         ref_rejected = sequence_log_probs(
             ref_model,
             batch["rejected_input_ids"],
             batch["rejected_attention_mask"],
             batch["rejected_labels"],
+            length_normalize=length_normalize,
         )
 
     policy_logratio = policy_chosen - policy_rejected
@@ -353,10 +380,23 @@ def kto_forward(
     batch: Dict[str, torch.Tensor],
     beta: float,
     target_kl: float,
+    length_normalize: bool,
 ) -> Dict[str, torch.Tensor]:
-    policy_logp = sequence_log_probs(policy_model, batch["input_ids"], batch["attention_mask"], batch["labels"])
+    policy_logp = sequence_log_probs(
+        policy_model,
+        batch["input_ids"],
+        batch["attention_mask"],
+        batch["labels"],
+        length_normalize=length_normalize,
+    )
     with torch.no_grad():
-        ref_logp = sequence_log_probs(ref_model, batch["input_ids"], batch["attention_mask"], batch["labels"])
+        ref_logp = sequence_log_probs(
+            ref_model,
+            batch["input_ids"],
+            batch["attention_mask"],
+            batch["labels"],
+            length_normalize=length_normalize,
+        )
 
     rewards = beta * (policy_logp - ref_logp)
     labels = batch["kto_label"]
@@ -389,6 +429,7 @@ def evaluate_dpo(
     dataloader: DataLoader,
     device: torch.device,
     beta: float,
+    length_normalize: bool,
 ) -> Dict[str, float]:
     policy_model.eval()
 
@@ -405,7 +446,7 @@ def evaluate_dpo(
         if batch is None:
             continue
         batch = to_device(batch, device)
-        out = dpo_forward(policy_model, ref_model, batch, beta=beta)
+        out = dpo_forward(policy_model, ref_model, batch, beta=beta, length_normalize=length_normalize)
         for key in metrics:
             metrics[key] += out[key].item()
         steps += 1
@@ -424,6 +465,7 @@ def evaluate_kto(
     device: torch.device,
     beta: float,
     target_kl: float,
+    length_normalize: bool,
 ) -> Dict[str, float]:
     policy_model.eval()
 
@@ -440,14 +482,28 @@ def evaluate_kto(
         if batch is None:
             continue
         batch = to_device(batch, device)
-        out = kto_forward(policy_model, ref_model, batch, beta=beta, target_kl=target_kl)
+        out = kto_forward(
+            policy_model,
+            ref_model,
+            batch,
+            beta=beta,
+            target_kl=target_kl,
+            length_normalize=length_normalize,
+        )
         for key in metrics:
             metrics[key] += out[key].item()
         steps += 1
 
     result = {k: (v / steps if steps else float("nan")) for k, v in metrics.items()}
 
-    pair_eval = evaluate_dpo(policy_model, ref_model, pair_dataloader, device=device, beta=beta)
+    pair_eval = evaluate_dpo(
+        policy_model,
+        ref_model,
+        pair_dataloader,
+        device=device,
+        beta=beta,
+        length_normalize=length_normalize,
+    )
     result["pair_acc"] = pair_eval["pair_acc"]
     result["pair_margin"] = pair_eval["margin"]
     return result
@@ -475,6 +531,7 @@ def main() -> None:
     precision, amp_dtype = resolve_precision(args.precision, device)
     print(f"Using device: {device}")
     print(f"Using precision: {precision}")
+    print(f"Length-normalized scoring: {args.length_normalize}")
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=True)
     if tokenizer.pad_token_id is None:
@@ -563,7 +620,13 @@ def main() -> None:
                 use_amp = device.type == "cuda" and precision in {"fp16", "bf16"}
                 with torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=use_amp):
                     if args.mode == "dpo":
-                        out = dpo_forward(policy_model, ref_model, batch, beta=args.beta)
+                        out = dpo_forward(
+                            policy_model,
+                            ref_model,
+                            batch,
+                            beta=args.beta,
+                            length_normalize=args.length_normalize,
+                        )
                         loss = out["loss"]
                         running["pair_acc"] = running.get("pair_acc", 0.0) + out["pair_acc"].item()
                         running["dpo_acc"] = running.get("dpo_acc", 0.0) + out["dpo_acc"].item()
@@ -574,6 +637,7 @@ def main() -> None:
                             batch,
                             beta=args.beta,
                             target_kl=args.kto_target_kl,
+                            length_normalize=args.length_normalize,
                         )
                         loss = out["loss"]
                         running["label_acc"] = running.get("label_acc", 0.0) + out["label_acc"].item()
@@ -614,7 +678,12 @@ def main() -> None:
 
             if args.mode == "dpo":
                 eval_metrics = evaluate_dpo(
-                    policy_model, ref_model, eval_pair_loader, device=device, beta=args.beta
+                    policy_model,
+                    ref_model,
+                    eval_pair_loader,
+                    device=device,
+                    beta=args.beta,
+                    length_normalize=args.length_normalize,
                 )
             else:
                 eval_metrics = evaluate_kto(
@@ -625,11 +694,19 @@ def main() -> None:
                     device=device,
                     beta=args.beta,
                     target_kl=args.kto_target_kl,
+                    length_normalize=args.length_normalize,
                 )
             print(f"Eval after epoch {epoch + 1}: {json.dumps(eval_metrics, indent=2)}")
 
     if args.mode == "dpo":
-        final_metrics = evaluate_dpo(policy_model, ref_model, eval_pair_loader, device=device, beta=args.beta)
+        final_metrics = evaluate_dpo(
+            policy_model,
+            ref_model,
+            eval_pair_loader,
+            device=device,
+            beta=args.beta,
+            length_normalize=args.length_normalize,
+        )
     else:
         final_metrics = evaluate_kto(
             policy_model,
@@ -639,6 +716,7 @@ def main() -> None:
             device=device,
             beta=args.beta,
             target_kl=args.kto_target_kl,
+            length_normalize=args.length_normalize,
         )
 
     print_metrics(f"Final metrics ({args.eval_split} split)", final_metrics)
