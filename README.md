@@ -104,6 +104,38 @@ Saved to `output_dir/metrics.json`.
 - `label_acc` (KTO): % correct desirable vs undesirable classification
 - `mean_reward`, `desired_reward`, `undesired_reward` (KTO): reward stats vs reference model
 
+## Example Results (gpt2, seed=42)
+
+Run setup:
+- Baseline: `gpt2` eval-only on `test` (`eval_samples=1000`)
+- Trained: SFT warmup (`sft_epochs=2`) + DPO (`epochs=5`) on `train_samples=16000`
+
+Final test metrics summary:
+
+| Model Stage | pair_acc | margin |
+| --- | ---: | ---: |
+| Baseline (`eval_only`) | 0.4520 | -0.0700 |
+| SFT + DPO | 0.5350 | 0.1228 |
+| Delta | +0.0830 | +0.1928 |
+
+```mermaid
+xychart-beta
+    title "GPT-2 Test pair_acc (Anthropic/hh-rlhf)"
+    x-axis ["Baseline", "SFT+DPO"]
+    y-axis "pair_acc" 0.40 --> 0.56
+    bar [0.452, 0.535]
+```
+
+Per-epoch eval `pair_acc` during DPO:
+
+```mermaid
+xychart-beta
+    title "DPO Eval pair_acc by Epoch (after SFT warmup)"
+    x-axis [1, 2, 3, 4, 5]
+    y-axis "pair_acc" 0.52 --> 0.54
+    line [0.523, 0.531, 0.534, 0.533, 0.535]
+```
+
 ## Notes
 
 - This script keeps implementation intentionally small and readable.
