@@ -140,10 +140,15 @@ xychart-beta
     line [0.508, 0.508, 0.513, 0.507, 0.513]
 ```
 
-Line/color order in the overlaid epoch graph:
-- Line 1: `corruption=0.0`
-- Line 2: `corruption=0.25`
-- Line 3: `corruption=0.5`
+Legend for the overlaid epoch graph:
+
+| Series | Condition |
+| --- | --- |
+| Line 1 (usually blue) | `corruption=0.0` |
+| Line 2 (usually orange) | `corruption=0.25` |
+| Line 3 (usually green) | `corruption=0.5` |
+
+If your Mermaid theme uses different colors, use line order (1/2/3) as the source of truth.
 
 ## Notes
 
