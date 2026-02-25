@@ -288,7 +288,6 @@ def resolve_device(device_arg: str) -> torch.device:
 def resolve_precision(precision_arg: str, device: torch.device) -> Tuple[str, Optional[torch.dtype]]:
     if device.type != "cuda":
         return "fp32", None
-
     if precision_arg == "fp32":
         return "fp32", None
     if precision_arg == "fp16":
@@ -454,6 +453,20 @@ def evaluate_kto(
     return result
 
 
+def format_metric_value(value: float) -> str:
+    if isinstance(value, float) and math.isnan(value):
+        return "nan"
+    return f"{value:.6f}"
+
+
+def print_metrics(title: str, metrics: Dict[str, float]) -> None:
+    print(title)
+    print("-" * len(title))
+    key_width = max(len(k) for k in metrics)
+    for key in sorted(metrics):
+        print(f"{key.rjust(key_width)} : {format_metric_value(metrics[key])}")
+
+
 def main() -> None:
     args = parse_args()
     set_seed(args.seed)
@@ -533,7 +546,7 @@ def main() -> None:
 
         print(f"Training {args.mode.upper()} for {args.epochs} epoch(s), total optimizer steps: {total_steps}")
         policy_model.train()
-        scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda" and precision == "fp16"))
+        scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda" and precision == "fp16"))
         global_step = 0
         optimizer.zero_grad(set_to_none=True)
 
@@ -628,8 +641,7 @@ def main() -> None:
             target_kl=args.kto_target_kl,
         )
 
-    print("Final eval metrics:")
-    print(json.dumps(final_metrics, indent=2))
+    print_metrics(f"Final metrics ({args.eval_split} split)", final_metrics)
 
     os.makedirs(args.output_dir, exist_ok=True)
     with open(os.path.join(args.output_dir, "metrics.json"), "w", encoding="utf-8") as f:
