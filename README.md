@@ -132,23 +132,13 @@ Per-epoch eval `pair_acc` during DPO (overlaid lines):
 
 ```mermaid
 xychart-beta
-    title "DPO Eval pair_acc by Epoch (0.0 vs 0.25 vs 0.5 corruption)"
+    title "DPO Eval pair_acc by Epoch | L1(blue)=c0.0, L2(orange)=c0.25, L3(green)=c0.5"
     x-axis [1, 2, 3, 4, 5]
     y-axis "pair_acc" 0.505 --> 0.54
     line [0.523, 0.531, 0.534, 0.533, 0.535]
     line [0.519, 0.522, 0.530, 0.521, 0.520]
     line [0.508, 0.508, 0.513, 0.507, 0.513]
 ```
-
-Legend for the overlaid epoch graph:
-
-| Series | Condition |
-| --- | --- |
-| Line 1 (usually blue) | `corruption=0.0` |
-| Line 2 (usually orange) | `corruption=0.25` |
-| Line 3 (usually green) | `corruption=0.5` |
-
-If your Mermaid theme uses different colors, use line order (1/2/3) as the source of truth.
 
 ## Notes
 
