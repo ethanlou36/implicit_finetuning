@@ -108,6 +108,7 @@ Saved to `output_dir/metrics.json`.
 
 Run setup:
 - Baseline: `gpt2` eval-only on `test` (`eval_samples=1000`)
+- SFT-only: `sft_epochs=2`, `epochs=0` (no DPO updates)
 - Training: SFT warmup (`sft_epochs=2`) + DPO (`epochs=5`) on `train_samples=16000`
 - Compared data conditions: `corruption=0.0` vs `corruption=0.25` vs `corruption=0.5` vs `corruption=0.75` vs `corruption=1.0`
 
@@ -116,6 +117,7 @@ Final test metrics summary:
 | Condition | pair_acc | margin | delta pair_acc vs baseline |
 | --- | ---: | ---: | ---: |
 | Baseline (`eval_only`) | 0.4520 | -0.0700 | +0.0000 |
+| SFT-only (`epochs=0`) | 0.5060 | 0.0474 | +0.0540 |
 | SFT + DPO (`corruption=0.0`) | 0.5350 | 0.1228 | +0.0830 |
 | SFT + DPO (`corruption=0.25`) | 0.5200 | 0.0870 | +0.0680 |
 | SFT + DPO (`corruption=0.5`) | 0.5130 | 0.0452 | +0.0610 |
@@ -124,10 +126,10 @@ Final test metrics summary:
 
 ```mermaid
 xychart-beta
-    title "GPT-2 Test pair_acc (Baseline vs SFT+DPO corruption settings)"
-    x-axis ["Baseline", "SFT+DPO (0.0)", "SFT+DPO (0.25)", "SFT+DPO (0.5)", "SFT+DPO (0.75)", "SFT+DPO (1.0)"]
+    title "GPT-2 Test pair_acc (Baseline, SFT-only, SFT+DPO corruption settings)"
+    x-axis ["Baseline", "SFT-only", "SFT+DPO (0.0)", "SFT+DPO (0.25)", "SFT+DPO (0.5)", "SFT+DPO (0.75)", "SFT+DPO (1.0)"]
     y-axis "pair_acc" 0.40 --> 0.56
-    bar [0.452, 0.535, 0.520, 0.513, 0.478, 0.434]
+    bar [0.452, 0.506, 0.535, 0.520, 0.513, 0.478, 0.434]
 ```
 
 Per-epoch eval improvement over baseline during DPO (overlaid lines):
@@ -137,6 +139,7 @@ xychart-beta
     title "DPO Eval delta pair_acc vs baseline (baseline pair_acc=0.4520)"
     x-axis [1, 2, 3, 4, 5]
     y-axis "delta pair_acc" -0.03 --> 0.09
+    line [0.054, 0.054, 0.054, 0.054, 0.054]
     line [0.071, 0.079, 0.082, 0.081, 0.083]
     line [0.067, 0.070, 0.078, 0.069, 0.068]
     line [0.056, 0.056, 0.061, 0.055, 0.061]
@@ -148,11 +151,12 @@ Legend for the overlaid epoch graph:
 
 | Series | Color indicator | Condition |
 | --- | --- | --- |
-| Line 1 | <span style="color:#1f77b4;">&#9632; blue (#1f77b4)</span> | `corruption=0.0` |
-| Line 2 | <span style="color:#ff7f0e;">&#9632; orange (#ff7f0e)</span> | `corruption=0.25` |
-| Line 3 | <span style="color:#2ca02c;">&#9632; green (#2ca02c)</span> | `corruption=0.5` |
-| Line 4 | <span style="color:#d62728;">&#9632; red (#d62728)</span> | `corruption=0.75` |
-| Line 5 | <span style="color:#9467bd;">&#9632; purple (#9467bd)</span> | `corruption=1.0` |
+| Line 1 | <span style="color:#1f77b4;">&#9632; blue (#1f77b4)</span> | `SFT-only` reference (constant delta `+0.054`) |
+| Line 2 | <span style="color:#ff7f0e;">&#9632; orange (#ff7f0e)</span> | `corruption=0.0` |
+| Line 3 | <span style="color:#2ca02c;">&#9632; green (#2ca02c)</span> | `corruption=0.25` |
+| Line 4 | <span style="color:#d62728;">&#9632; red (#d62728)</span> | `corruption=0.5` |
+| Line 5 | <span style="color:#9467bd;">&#9632; purple (#9467bd)</span> | `corruption=0.75` |
+| Line 6 | <span style="color:#8c564b;">&#9632; brown (#8c564b)</span> | `corruption=1.0` |
 
 ## Notes
 
