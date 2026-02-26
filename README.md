@@ -19,15 +19,7 @@ pip install -r requirements.txt
 ## Run DPO
 
 ```bash
-python train_preference.py \
-  --mode dpo \
-  --model_name_or_path distilgpt2 \
-  --train_samples 2000 \
-  --eval_samples 500 \
-  --epochs 1 \
-  --batch_size 2 \
-  --output_dir outputs/dpo-distilgpt2 \
-  --save_model
+python train_preference.py --mode dpo --model_name_or_path distilgpt2 --train_samples 2000 --eval_samples 500 --epochs 1 --batch_size 2 --output_dir outputs/dpo-distilgpt2 --save_model
 ```
 
 ### Google Colab (CUDA) recommended
@@ -35,18 +27,7 @@ python train_preference.py \
 In Colab, set runtime to `GPU` first (`Runtime -> Change runtime type -> T4/A100`), then run:
 
 ```bash
-python train_preference.py \
-  --mode dpo \
-  --model_name_or_path distilgpt2 \
-  --device cuda \
-  --precision fp16 \
-  --train_samples 2000 \
-  --eval_samples 500 \
-  --epochs 1 \
-  --batch_size 4 \
-  --grad_accum_steps 4 \
-  --max_length 384 \
-  --output_dir outputs/dpo-colab
+python train_preference.py --mode dpo --model_name_or_path distilgpt2 --device cuda --precision fp16 --train_samples 2000 --eval_samples 500 --epochs 1 --batch_size 4 --grad_accum_steps 4 --max_length 384 --output_dir outputs/dpo-colab
 ```
 
 If you hit OOM, reduce `--batch_size` first, then `--max_length`.
@@ -54,17 +35,7 @@ If you hit OOM, reduce `--batch_size` first, then `--max_length`.
 ## Run KTO
 
 ```bash
-python train_preference.py \
-  --mode kto \
-  --model_name_or_path distilgpt2 \
-  --device cuda \
-  --precision fp16 \
-  --train_samples 2000 \
-  --eval_samples 500 \
-  --epochs 1 \
-  --batch_size 2 \
-  --output_dir outputs/kto-distilgpt2 \
-  --save_model
+python train_preference.py --mode kto --model_name_or_path distilgpt2 --device cuda --precision fp16 --train_samples 2000 --eval_samples 500 --epochs 1 --batch_size 2 --output_dir outputs/kto-distilgpt2 --save_model
 ```
 
 ## Evaluate a Saved Model
@@ -72,25 +43,13 @@ python train_preference.py \
 Use the saved model as policy and the original base model as reference:
 
 ```bash
-python train_preference.py \
-  --mode dpo \
-  --model_name_or_path outputs/dpo-distilgpt2 \
-  --ref_model_name_or_path distilgpt2 \
-  --eval_only \
-  --eval_samples 500 \
-  --output_dir outputs/dpo-eval
+python train_preference.py --mode dpo --model_name_or_path outputs/dpo-distilgpt2 --ref_model_name_or_path distilgpt2 --eval_only --eval_samples 500 --output_dir outputs/dpo-eval
 ```
 
 Same idea for KTO:
 
 ```bash
-python train_preference.py \
-  --mode kto \
-  --model_name_or_path outputs/kto-distilgpt2 \
-  --ref_model_name_or_path distilgpt2 \
-  --eval_only \
-  --eval_samples 500 \
-  --output_dir outputs/kto-eval
+python train_preference.py --mode kto --model_name_or_path outputs/kto-distilgpt2 --ref_model_name_or_path distilgpt2 --eval_only --eval_samples 500 --output_dir outputs/kto-eval
 ```
 
 ## Metrics
