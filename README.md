@@ -112,18 +112,23 @@ Run setup:
 - Training: SFT warmup (`sft_epochs=2`) + DPO (`epochs=5`) on `train_samples=16000`
 - Compared data conditions: `corruption=0.0` vs `corruption=0.25` vs `corruption=0.5` vs `corruption=0.75` vs `corruption=1.0`
 
-Final test metrics summary:
+## Final Test Metrics Summary
 
-| Condition | pair_acc | margin | delta pair_acc vs baseline |
-| --- | ---: | ---: | ---: |
-| Baseline (`eval_only`) | 0.4520 | -0.0700 | +0.0000 |
-| SFT-only (`epochs=0`) | 0.5060 | 0.0474 | +0.0540 |
-| SFT + DPO (`corruption=0.0`) | 0.5350 | 0.1228 | +0.0830 |
-| SFT + DPO (`corruption=0.25`) | 0.5200 | 0.0870 | +0.0680 |
-| SFT + DPO (`corruption=0.5`) | 0.5130 | 0.0452 | +0.0610 |
-| SFT + DPO (`corruption=0.75`) | 0.4780 | -0.0281 | +0.0260 |
-| SFT + DPO (`corruption=1.0`) | 0.4340 | -0.1590 | -0.0180 |
+| Condition | `pair_acc` | `margin` | Δ `pair_acc` vs Baseline |
+|:---|---:|---:|---:|
+| Baseline (`eval_only`) | 0.4520 | −0.0700 | +0.0000 |
+| SFT-only (`epochs=0`) | 0.5060 | +0.0474 | +0.0540 |
+| SFT + DPO (`corruption=0.0`) | **0.5350** | **+0.1228** | **+0.0830** |
+| SFT + DPO (`corruption=0.25`) | 0.5200 | +0.0870 | +0.0680 |
+| SFT + DPO (`corruption=0.5`) | 0.5130 | +0.0452 | +0.0610 |
+| SFT + DPO (`corruption=0.75`) | 0.4780 | −0.0281 | +0.0260 |
+| SFT + DPO (`corruption=1.0`) | 0.4340 | −0.1590 | −0.0180 |
 
+> **Best:** SFT + DPO with `corruption=0.0` achieves the highest `pair_acc` (0.5350) and margin (+0.1228).
+
+---
+
+## Test `pair_acc` by Condition
 ```mermaid
 xychart-beta
     title "GPT-2 Test pair_acc (Baseline, SFT-only, SFT+DPO corruption settings)"
@@ -132,8 +137,11 @@ xychart-beta
     bar [0.452, 0.506, 0.535, 0.520, 0.513, 0.478, 0.434]
 ```
 
-Per-epoch eval improvement over baseline during DPO (overlaid lines):
+---
 
+## Per-Epoch Δ `pair_acc` During DPO Training
+
+Delta relative to baseline (`pair_acc = 0.4520`), overlaid across all corruption levels.
 ```mermaid
 xychart-beta
     title "DPO Eval delta pair_acc vs baseline (baseline pair_acc=0.4520)"
@@ -147,19 +155,19 @@ xychart-beta
     line [0.021, -0.008, -0.020, -0.016, -0.018]
 ```
 
-Legend for the overlaid epoch graph:
+| Line | Color | Condition | Final Δ |
+|:---:|:---|:---|---:|
+| 1 | <span style="color:#1f77b4;">█ Blue</span> | `SFT-only` — constant reference | +0.054 |
+| 2 | <span style="color:#ff7f0e;">█ Orange</span> | `corruption=0.0` | +0.083 |
+| 3 | <span style="color:#2ca02c;">█ Green</span> | `corruption=0.25` | +0.068 |
+| 4 | <span style="color:#d62728;">█ Red</span> | `corruption=0.5` | +0.061 |
+| 5 | <span style="color:#9467bd;">█ Purple</span> | `corruption=0.75` | +0.026 |
+| 6 | <span style="color:#8c564b;">█ Brown</span> | `corruption=1.0` | −0.018 |
 
-| Series | Color indicator | Condition |
-| --- | --- | --- |
-| Line 1 | <span style="color:#1f77b4;">&#9632; blue (#1f77b4)</span> | `SFT-only` reference (constant delta `+0.054`) |
-| Line 2 | <span style="color:#ff7f0e;">&#9632; orange (#ff7f0e)</span> | `corruption=0.0` |
-| Line 3 | <span style="color:#2ca02c;">&#9632; green (#2ca02c)</span> | `corruption=0.25` |
-| Line 4 | <span style="color:#d62728;">&#9632; red (#d62728)</span> | `corruption=0.5` |
-| Line 5 | <span style="color:#9467bd;">&#9632; purple (#9467bd)</span> | `corruption=0.75` |
-| Line 6 | <span style="color:#8c564b;">&#9632; brown (#8c564b)</span> | `corruption=1.0` |
+---
 
 ## Notes
 
-- This script keeps implementation intentionally small and readable.
-- It truncates long samples to `--max_length`.
+- Implementation is intentionally kept small and readable.
+- Long samples are truncated to `--max_length`.
 - KTO uses a simple objective based on reward sign and `--kto_target_kl`.
